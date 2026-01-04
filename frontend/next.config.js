@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   images: {
-    domains: ['localhost', 'api.example.com'],
+    domains: ['localhost', 'api.example.com', 'backend-pi-six-38.vercel.app'],
     formats: ['image/avif', 'image/webp'],
   },
   headers: async () => {
@@ -37,7 +37,7 @@ const nextConfig = {
     ]
   },
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://backend-pi-six-38.vercel.app/api',
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME || 'Todo App',
   },
 }
