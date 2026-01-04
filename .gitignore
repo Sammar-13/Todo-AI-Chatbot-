@@ -1,0 +1,246 @@
+# Environment Variables
+.env
+.env.local
+.env.*.local
+.env.production.local
+.env.development.local
+.env.test.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+*.cover
+*.py,cover
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv
+
+# Backend specific
+backend/.env
+backend/.env.production
+backend/.env.local
+backend/.pytest_cache/
+backend/dist/
+backend/build/
+backend/.eggs/
+
+# Node.js / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+.node_repl_history
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.vercel/
+frontend/.turbo/
+.turbo/
+
+# React
+frontend/coverage/
+frontend/dist/
+
+# Dependencies
+frontend/node_modules/
+frontend/package-lock.json
+frontend/yarn.lock
+backend/requirements.txt.lock
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.sublime-workspace
+*.sublime-project
+.atom/
+.Rhistory
+.RData
+.vscode-ctags
+.vim/
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.AppleDouble
+.LSOverride
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+postgres_data/
+db.sqlite3
+
+# Logs
+logs/
+*.log
+*.logs
+npm-debug.log
+lerna-debug.log
+.pnpm-debug.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*~
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+
+# Testing
+.nyc_output/
+coverage/
+.coverage
+.pytest_cache/
+
+# Misc
+.cache/
+.parcel-cache/
+.next/
+out/
+.nuxt/
+dist/
+.cache/
+.vuepress/dist/
+.serverless/
+.fusebox/
+.dynamodb/
+.tern-port
+.vscode-test/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Vercel
+.vercel
+
+# Railway
+.railway/
+
+# Secrets and Credentials (NEVER commit these!)
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cer
+*.der
+secrets.json
+credentials.json
+.aws/
+.gcloud/
+service-account-key.json
+
+# IDE Cache
+.cache
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries/
+.idea/vcs.xml
+.idea/jsLibraryMappings.xml
+.idea/modules.xml
+.idea/*.iws
+.idea/misc.xml
+.idea/codeStyles/
+
+# Project specific
+.env.production
+.env.development
+migration_backups/
+backups/
+
+# Compiled files
+*.o
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+
+# Large files (optional - uncomment if needed)
+# *.mp4
+# *.mov
+# *.zip
+# *.tar.gz
+# *.iso
+
+# AI/ML related
+*.model
+*.pickle
+*.h5
+*.pb

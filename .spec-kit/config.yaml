@@ -1,0 +1,15 @@
+project:
+  name: hackathon-todo
+  version: 1.0.0
+  description: Professional hackathon todo application with SDD practices
+
+phases:
+  - phase1
+  - phase2
+  - phase3
+  - phase4
+  - phase5
+
+spec-kit:
+  version: 1.0.0
+  enforcement: strict
