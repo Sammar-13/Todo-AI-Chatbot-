@@ -73,16 +73,14 @@ class Settings(BaseSettings):
     SERVER_PORT: int = 8000
     """Server bind port"""
 
-    def __init__(self, **data):
-        """Initialize settings with validation."""
-        super().__init__(**data)
-        self._validate_settings()
-
-    def _validate_settings(self) -> None:
+    def validate(self) -> None:
         """Validate critical configuration settings.
 
         Raises:
             ValueError: If any critical setting is missing or invalid
+
+        Note: This is NOT called at import time to avoid crashes in serverless environments.
+        Call this manually in route handlers or startup events if needed.
         """
         if not self.DATABASE_URL:
             raise ValueError("DATABASE_URL is required")

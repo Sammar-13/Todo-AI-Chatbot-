@@ -25,11 +25,17 @@ async def lifespan(app: FastAPI):
     """Manage application lifespan.
 
     Handles startup and shutdown events.
+    Note: On Vercel serverless, lifespan events may not be reliable.
     """
     # Startup
     logger.info("Starting up application...")
-    await create_db_and_tables()
-    logger.info("Database tables created/verified")
+    try:
+        await create_db_and_tables()
+        logger.info("Database tables created/verified")
+    except RuntimeError as e:
+        # On Vercel serverless, this may fail during cold start
+        # The app will still be available for requests, but DB operations may fail
+        logger.warning(f"Database initialization failed (expected on cold start): {e}")
 
     yield
 

@@ -14,27 +14,31 @@ from .config import settings
 logger = logging.getLogger("app")
 
 
-# Create async database engine
-# Use NullPool for Neon to avoid connection limit issues
-if settings.DATABASE_URL.startswith("sqlite"):
-    engine = create_async_engine(
-        settings.DATABASE_URL,
-        echo=settings.DEBUG,
-        connect_args={"check_same_thread": False},
-    )
-else:
-    engine = create_async_engine(
-        settings.DATABASE_URL,
-        echo=settings.DEBUG,
-        poolclass=NullPool,  # Neon has connection limits, don't pool
-        connect_args={
-            "server_settings": {
-                "application_name": "hackathon_todo",
+# Create async database engine lazily
+# This function is called when first needed, not at import time
+def _create_engine():
+    """Create database engine (lazy initialization for serverless)."""
+    if settings.DATABASE_URL.startswith("sqlite"):
+        return create_async_engine(
+            settings.DATABASE_URL,
+            echo=settings.DEBUG,
+            connect_args={"check_same_thread": False},
+        )
+    else:
+        return create_async_engine(
+            settings.DATABASE_URL,
+            echo=settings.DEBUG,
+            poolclass=NullPool,  # Neon has connection limits, don't pool
+            connect_args={
+                "server_settings": {
+                    "application_name": "hackathon_todo",
+                },
+                "ssl": "require",  # Enforce SSL for Neon
+                "timeout": 10,  # 10 second connection timeout
             },
-            "ssl": "require",  # Enforce SSL for Neon
-            "timeout": 10,  # 10 second connection timeout
-        },
-    )
+        )
+
+engine = _create_engine()
 
 # Create async session factory
 async_session = async_sessionmaker(
