@@ -70,5 +70,7 @@ except Exception as e:
         )
 
     app = error_app
-    raise
+    # Do not raise the exception, otherwise Vercel will report a crash
+    # and not use our fallback app.
+
 
