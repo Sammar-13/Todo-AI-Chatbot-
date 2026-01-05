@@ -52,20 +52,24 @@ except Exception as e:
             return
 
         # Send error response
-        error_msg = f"Failed to initialize FastAPI app: {str(e)}"
-        response_body = f'Error: {error_msg}'.encode("utf-8")
+        import json
+        error_content = json.dumps({
+            "error": "FUNCTION_INVOCATION_FAILED",
+            "detail": str(e),
+            "type": type(e).__name__
+        }).encode("utf-8")
 
         await send(
             {
                 "type": "http.response.start",
                 "status": 500,
-                "headers": [[b"content-type", b"text/plain"]],
+                "headers": [[b"content-type", b"application/json"]],
             }
         )
         await send(
             {
                 "type": "http.response.body",
-                "body": response_body,
+                "body": error_content,
             }
         )
 

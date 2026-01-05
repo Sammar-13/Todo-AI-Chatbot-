@@ -101,6 +101,46 @@ def create_app() -> FastAPI:
     app.include_router(users_router, prefix="/api")
     app.include_router(tasks_router, prefix="/api")
 
+    @app.get("/api/diagnose")
+    async def diagnose_system() -> dict:
+        """Diagnostic endpoint to check system status (Safe for production)."""
+        import sys
+        import os
+        from .config import settings
+        from sqlalchemy import text
+        from .database import engine
+
+        # Check Environment Variables
+        env_vars = {
+            "DATABASE_URL": "Set" if settings.DATABASE_URL else "Missing",
+            "JWT_SECRET_KEY": "Set" if len(settings.JWT_SECRET_KEY) >= 32 else "Weak/Missing",
+            "ENVIRONMENT": settings.ENVIRONMENT,
+            "DEBUG": settings.DEBUG,
+            "VERCEL": os.environ.get("VERCEL", "0"),
+            "PYTHON_VERSION": sys.version,
+        }
+
+        # Check Database Connection
+        db_status = "Unknown"
+        db_error = None
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+                db_status = "Connected"
+        except Exception as e:
+            db_status = "Failed"
+            db_error = str(e)
+
+        return {
+            "status": "diagnostic",
+            "environment": env_vars,
+            "database": {
+                "status": db_status,
+                "error": db_error,
+                "url_prefix": settings.DATABASE_URL.split("://")[0] if "://" in settings.DATABASE_URL else "Invalid",
+            }
+        }
+
     # Health check endpoint at root
     @app.get("/health")
     def health_check() -> dict:

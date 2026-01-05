@@ -18,31 +18,39 @@ logger = logging.getLogger("app")
 # This function is called when first needed, not at import time
 def _create_engine():
     """Create database engine (lazy initialization for serverless)."""
-    db_url = settings.DATABASE_URL
-    if db_url.startswith("postgres://"):
-        db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
-    elif db_url.startswith("postgresql://"):
-        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    try:
+        db_url = settings.DATABASE_URL
+        if not db_url:
+            raise ValueError("DATABASE_URL is not set")
+            
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif db_url.startswith("postgresql://"):
+            db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-    if db_url.startswith("sqlite"):
-        return create_async_engine(
-            db_url,
-            echo=settings.DEBUG,
-            connect_args={"check_same_thread": False},
-        )
-    else:
-        return create_async_engine(
-            db_url,
-            echo=settings.DEBUG,
-            poolclass=NullPool,  # Neon has connection limits, don't pool
-            connect_args={
-                "server_settings": {
-                    "application_name": "hackathon_todo",
+        if db_url.startswith("sqlite"):
+            return create_async_engine(
+                db_url,
+                echo=settings.DEBUG,
+                connect_args={"check_same_thread": False},
+            )
+        else:
+            return create_async_engine(
+                db_url,
+                echo=settings.DEBUG,
+                poolclass=NullPool,  # Neon has connection limits, don't pool
+                connect_args={
+                    "server_settings": {
+                        "application_name": "hackathon_todo",
+                    },
+                    "ssl": "require",  # Enforce SSL for Neon
+                    "timeout": 10,  # 10 second connection timeout
                 },
-                "ssl": "require",  # Enforce SSL for Neon
-                "timeout": 10,  # 10 second connection timeout
-            },
-        )
+            )
+    except Exception as e:
+        logger.error(f"Failed to create database engine: {e}")
+        # Fallback to in-memory SQLite to allow app to start (will fail on DB ops but not crash app)
+        return create_async_engine("sqlite+aiosqlite:///:memory:")
 
 engine = _create_engine()
 
