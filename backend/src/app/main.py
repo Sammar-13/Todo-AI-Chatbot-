@@ -98,7 +98,16 @@ def create_app() -> FastAPI:
                     "error_code": "DATABASE_OFFLINE",
                 },
             )
-        raise
+        
+        # Catch all other RuntimeErrors (including other DB errors)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "detail": f"Internal Server Error: {error_str}",
+                "error_code": "INTERNAL_ERROR",
+            },
+        )
+
 
     # Include API routes with /api prefix
     app.include_router(health_router, prefix="/api")
