@@ -58,7 +58,7 @@ def _create_engine():
                         "application_name": "hackathon_todo",
                     },
                     "ssl": "require",  # Enforce SSL for Neon
-                    "connect_timeout": 10,  # 10 second connection timeout
+                    "timeout": 10,  # 10 second connection timeout
                 },
             )
     except Exception as e:
