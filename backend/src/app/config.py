@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     BCRYPT_ROUNDS: int = 10
     """Number of rounds for bcrypt password hashing"""
 
-    CORS_ORIGINS: str = "http://localhost:3000,https://your-frontend.vercel.app"
+    CORS_ORIGINS: str = "http://localhost:3000,https://full-stack-web-todo-app.vercel.app"
     """Comma-separated list of allowed CORS origins"""
 
     # Application
