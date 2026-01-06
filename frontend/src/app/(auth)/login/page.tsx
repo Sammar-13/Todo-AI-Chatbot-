@@ -53,7 +53,7 @@ export default function LoginPage() {
 
       <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-3xl p-8 shadow-2xl">
         {error && (
-          <div className="mb-6 p-4 bg-red-500/20 border border-red-500/40 rounded-2xl text-red-200 text-sm font-bold flex items-center gap-3">
+          <div className="mb-6 p-4 bg-red-500/20 border border-red-500/40 rounded-2xl text-red-200 text-sm font-bold flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
             <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>

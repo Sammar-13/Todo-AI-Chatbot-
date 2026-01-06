@@ -27,9 +27,9 @@ export default function Sidebar({ className = "", onClose }: SidebarProps) {
   };
 
   return (
-    <aside className={`border-r border-slate-800 bg-[#020617] text-slate-300 flex-col h-full ${className}`}>
+    <aside className={`border-r border-slate-800 bg-[#020617] text-slate-300 flex flex-col h-full overflow-y-auto ${className}`}>
       {/* Top: Logo */}
-      <div className="p-6">
+      <div className="p-6 flex-shrink-0">
         <div className="flex items-center justify-between mb-8 px-2">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-500/20">
@@ -78,7 +78,7 @@ export default function Sidebar({ className = "", onClose }: SidebarProps) {
       </div>
 
       {/* Middle: Robot */}
-      <div className="flex-1 flex flex-col items-center justify-center p-4 overflow-hidden">
+      <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-[200px]">
           <SidebarRobot username={user?.full_name?.split(' ')[0]} />
           <div className="mt-4 px-4 py-1.5 rounded-full bg-slate-800/50 border border-slate-700/50">
             <p className="text-[9px] text-indigo-400 uppercase tracking-[0.2em] font-black">
