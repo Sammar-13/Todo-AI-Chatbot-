@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     """Debug mode flag"""
 
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = "production"
     """Environment: development, staging, or production"""
 
     LOG_LEVEL: str = "INFO"

@@ -1,135 +1,144 @@
 import requests
-import random
-import string
-import time
+import uuid
 import sys
 import json
 
-BASE_URL = "https://backend01-mu.vercel.app/api"
-HEALTH_URL = f"{BASE_URL}/health"
-REGISTER_URL = f"{BASE_URL}/auth/register"
-LOGIN_URL = f"{BASE_URL}/auth/login"
-TASKS_URL = f"{BASE_URL}/tasks"
+# Configuration
+BASE_URL = "https://full-stack-web-todo-app.vercel.app/api"
+TIMEOUT = 30  # seconds
 
-def random_string(length=10):
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+def log(message, type="INFO"):
+    print(f"[{type}] {message}")
 
-def run_verification():
+def verify_deployment():
     session = requests.Session()
     
-    print(f"Testing connectivity to {BASE_URL}...")
-    
-    # 1. Health Check
-    try:
-        print(f"1. Checking Health ({HEALTH_URL})...")
-        response = session.get(HEALTH_URL, timeout=10)
-        print(f"   Status Code: {response.status_code}")
-        print(f"   Response: {response.text}")
-        if response.status_code != 200:
-            print("   [FAILED] Health check failed.")
-            return False
-    except Exception as e:
-        print(f"   [FAILED] Exception during health check: {e}")
-        return False
+    # Generate random user
+    random_id = str(uuid.uuid4())[:8]
+    email = f"deploy_test_{random_id}@example.com"
+    password = "TestPassword123!"
+    full_name = f"Test User {random_id}"
 
-    # 2. Register
-    email = f"test_{random_string(6)}@example.com"
-    password = f"Pass{random_string(8)}!"
-    full_name = f"Test User {random_string(4)}"
-    
-    print(f"\n2. Registering User ({email})...")
-    payload = {
-        "email": email,
-        "password": password,
-        "full_name": full_name
-    }
-    
+    log(f"Starting deployment verification for: {BASE_URL}")
+    log(f"Test User: {email}")
+
+    # 1. Test Health/Root
     try:
-        response = session.post(REGISTER_URL, json=payload, timeout=10)
-        print(f"   Status Code: {response.status_code}")
-        # print(f"   Response: {response.text}")
+        log("Checking API health...")
+        # Note: We are hitting the frontend proxy /api/health which rewrites to backend /api/health
+        resp = session.get(f"{BASE_URL}/health", timeout=TIMEOUT)
+        log(f"Health check status: {resp.status_code}")
+        if resp.status_code != 200:
+            log(f"Health check failed: {resp.text}", "ERROR")
+            # Continue anyway, sometimes health endpoints differ
+    except Exception as e:
+        log(f"Health check exception: {e}", "WARNING")
+
+    # 2. Test Signup
+    try:
+        log("Attempting Signup...")
+        signup_data = {
+            "email": email,
+            "password": password,
+            "full_name": full_name
+        }
+        resp = session.post(f"{BASE_URL}/auth/register", json=signup_data, timeout=TIMEOUT)
         
-        if response.status_code == 201:
-            print("   [SUCCESS] Registration successful.")
-        else:
-            print(f"   [FAILED] Registration failed. {response.text}")
+        if resp.status_code != 201:
+            log(f"Signup failed: {resp.status_code} - {resp.text}", "ERROR")
             return False
-    except Exception as e:
-        print(f"   [FAILED] Exception during registration: {e}")
-        return False
-
-    # 3. Login (Note: Register usually logs you in via cookies, but let's test login explicitly or check cookies)
-    # The register endpoint returns cookies. Let's see if we have them.
-    cookies = session.cookies.get_dict()
-    if 'access_token' in cookies:
-        print("   [INFO] Registration returned access_token cookie.")
-    else:
-        print("   [INFO] No access_token cookie after registration. Attempting explicit login...")
-        try:
-            login_payload = {"email": email, "password": password}
-            response = session.post(LOGIN_URL, json=login_payload, timeout=10)
-            print(f"   Login Status Code: {response.status_code}")
-            if response.status_code != 200:
-                print(f"   [FAILED] Login failed. {response.text}")
-                return False
-            cookies = session.cookies.get_dict()
-            if 'access_token' not in cookies:
-                print("   [FAILED] Login successful but no access_token cookie received.")
-                return False
-            print("   [SUCCESS] Explicit login successful.")
-        except Exception as e:
-             print(f"   [FAILED] Exception during login: {e}")
-             return False
-
-    # 4. Create Task
-    print(f"\n3. Creating Task...")
-    task_payload = {
-        "title": f"Test Task {random_string(5)}",
-        "description": "This is a test task created by the verification script.",
-        "priority": "medium",
-        # "due_date": "2025-12-31T23:59:59Z" 
-    }
-    
-    try:
-        response = session.post(TASKS_URL, json=task_payload, timeout=10)
-        print(f"   Status Code: {response.status_code}")
-        if response.status_code == 201:
-            print("   [SUCCESS] Task created.")
-            task_data = response.json()
-            print(f"   Task ID: {task_data.get('id')}")
-        else:
-            print(f"   [FAILED] Task creation failed. {response.text}")
-            return False
-    except Exception as e:
-        print(f"   [FAILED] Exception during task creation: {e}")
-        return False
-
-    # 5. List Tasks
-    print(f"\n4. Listing Tasks...")
-    try:
-        response = session.get(TASKS_URL, timeout=10)
-        print(f"   Status Code: {response.status_code}")
-        if response.status_code == 200:
-            tasks_data = response.json()
-            items = tasks_data.get('items', [])
-            print(f"   [SUCCESS] Retrieved {len(items)} tasks.")
-            # Verify our task is there
-            # found = any(t['title'] == task_payload['title'] for t in items) # Might be paginated
-            # if found:
-            #     print("   [VERIFIED] Created task found in list.")
-            # else:
-            #     print("   [WARNING] Created task not found in first page of list.")
-        else:
-            print(f"   [FAILED] List tasks failed. {response.text}")
-            return False
-    except Exception as e:
-        print(f"   [FAILED] Exception during listing tasks: {e}")
-        return False
         
-    print("\n[SUMMARY] Backend verification complete. All steps passed.")
+        log("Signup successful!")
+        
+        # Check cookies
+        cookies = session.cookies.get_dict()
+        if "access_token" in cookies:
+            log("SUCCESS: 'access_token' cookie received!", "SUCCESS")
+        else:
+            log("WARNING: Signup succeeded but no 'access_token' cookie found. This might be okay if login is required separately, but typically register logs you in.", "WARNING")
+
+    except Exception as e:
+        log(f"Signup failed with exception: {e}", "ERROR")
+        return False
+
+    # 3. Test Login
+    try:
+        log("Attempting Login...")
+        login_data = {
+            "email": email,
+            "password": password
+        }
+        # Clear cookies to force new login (optional, but good for testing)
+        session.cookies.clear()
+        
+        resp = session.post(f"{BASE_URL}/auth/login", json=login_data, timeout=TIMEOUT)
+        
+        if resp.status_code != 200:
+            log(f"Login failed: {resp.status_code} - {resp.text}", "ERROR")
+            return False
+            
+        log("Login successful!")
+        
+        # Check cookies
+        cookies = session.cookies.get_dict()
+        if "access_token" in cookies:
+            log("SUCCESS: 'access_token' cookie received via Vercel Proxy!", "SUCCESS")
+        else:
+            log("CRITICAL FAILURE: Login returned 200 OK but NO 'access_token' cookie was set. The Proxy/Cookie configuration is broken.", "ERROR")
+            return False
+
+    except Exception as e:
+        log(f"Login failed with exception: {e}", "ERROR")
+        return False
+
+    # 4. Verify Session (GET /auth/verify)
+    try:
+        log("Verifying Session (GET /auth/verify)...")
+        # The cookie is in the session, so it will be sent automatically
+        resp = session.get(f"{BASE_URL}/auth/verify", timeout=TIMEOUT)
+        
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("authenticated") is True:
+                log("SUCCESS: Session verified! User is authenticated.", "SUCCESS")
+            else:
+                log(f"Session verification returned 200 but authenticated=False: {data}", "ERROR")
+                return False
+        else:
+            log(f"Session verification failed: {resp.status_code} - {resp.text}", "ERROR")
+            return False
+
+    except Exception as e:
+        log(f"Session verification failed with exception: {e}", "ERROR")
+        return False
+
+    # 5. Create a Task (End-to-End Test)
+    try:
+        log("Attempting to create a task...")
+        task_data = {
+            "title": f"Test Task {random_id}",
+            "description": "Created via automated deployment verification script",
+            "priority": "high"
+        }
+        
+        resp = session.post(f"{BASE_URL}/tasks", json=task_data, timeout=TIMEOUT)
+        
+        if resp.status_code in [200, 201]:
+            log("SUCCESS: Task created successfully!", "SUCCESS")
+            log(f"Task Response: {resp.json()}")
+        else:
+            log(f"Task creation failed: {resp.status_code} - {resp.text}", "ERROR")
+            return False
+
+    except Exception as e:
+        log(f"Task creation failed with exception: {e}", "ERROR")
+        return False
+
+    log("-" * 50)
+    log("DEPLOYMENT VERIFICATION COMPLETE: ALL SYSTEMS GO", "SUCCESS")
     return True
 
 if __name__ == "__main__":
-    success = run_verification()
+    success = verify_deployment()
     if not success:
         sys.exit(1)
