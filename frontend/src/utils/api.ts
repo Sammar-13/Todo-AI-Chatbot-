@@ -6,9 +6,9 @@
 
 import { ApiError, TokenResponse } from '@/types'
 
-const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL 
-  ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/api` 
-  : '/api'
+// Enforce relative path to use Next.js Rewrite Proxy
+// This ensures cookies are treated as Same-Site (essential for Vercel <-> HF auth)
+const API_URL = '/api'
 
 interface FetchOptions extends RequestInit {
   skipAuth?: boolean
