@@ -20,21 +20,35 @@ def _create_engine():
     """Create database engine (lazy initialization for serverless)."""
     try:
         db_url = settings.DATABASE_URL
+        
+        # In production/deployment, we MUST have a real database URL
         if not db_url:
-            raise ValueError("DATABASE_URL is not set")
+            # If we are in a build environment (like Vercel build), use memory DB
+            import os
+            if os.environ.get("CI") or os.environ.get("BUILD"):
+                 return create_async_engine("sqlite+aiosqlite:///:memory:")
             
+            # Otherwise, this is a configuration error
+            logger.error("CRITICAL: DATABASE_URL is missing!")
+            raise ValueError("DATABASE_URL environment variable is not set")
+            
+        # Fix Neon/Postgres URL format for SQLAlchemy
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
         elif db_url.startswith("postgresql://"):
             db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+        # Allow SQLite only if explicitly set (e.g. for local testing)
         if db_url.startswith("sqlite"):
+            logger.warning("Using SQLite database (not recommended for production)")
             return create_async_engine(
                 db_url,
                 echo=settings.DEBUG,
                 connect_args={"check_same_thread": False},
             )
         else:
+            # Production PostgreSQL (Neon) connection
+            logger.info("Initializing PostgreSQL connection...")
             return create_async_engine(
                 db_url,
                 echo=settings.DEBUG,
@@ -44,13 +58,12 @@ def _create_engine():
                         "application_name": "hackathon_todo",
                     },
                     "ssl": "require",  # Enforce SSL for Neon
-                    "timeout": 10,  # 10 second connection timeout
+                    "connect_timeout": 10,  # 10 second connection timeout
                 },
             )
     except Exception as e:
         logger.error(f"Failed to create database engine: {e}")
-        # Fallback to in-memory SQLite to allow app to start (will fail on DB ops but not crash app)
-        return create_async_engine("sqlite+aiosqlite:///:memory:")
+        raise # Fail fast! Do not fallback to SQLite in production.
 
 engine = _create_engine()
 

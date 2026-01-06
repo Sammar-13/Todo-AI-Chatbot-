@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # Database
     # Use os.getenv to avoid hardcoded defaults in production
     # Fallback to sqlite memory for testing/builds if not set
-    DATABASE_URL: str = "sqlite+aiosqlite:///:memory:" 
+    DATABASE_URL: str = "" 
 
 
     # JWT Configuration
