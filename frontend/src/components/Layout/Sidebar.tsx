@@ -5,7 +5,12 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import SidebarRobot from "./SidebarRobot";
 
-export default function Sidebar() {
+interface SidebarProps {
+  className?: string;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ className = "", onClose }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
 
@@ -22,14 +27,27 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-64 border-r border-slate-800 bg-[#020617] text-slate-300 flex flex-col h-full">
+    <aside className={`border-r border-slate-800 bg-[#020617] text-slate-300 flex-col h-full ${className}`}>
       {/* Top: Logo */}
       <div className="p-6">
-        <div className="flex items-center gap-2 mb-8 px-2">
-          <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-500/20">
-            T
+        <div className="flex items-center justify-between mb-8 px-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-500/20">
+              T
+            </div>
+            <span className="text-xl font-bold text-white tracking-tight">Todo App</span>
           </div>
-          <span className="text-xl font-bold text-white tracking-tight">Todo App</span>
+          {/* Mobile Close Button */}
+          {onClose && (
+            <button 
+              onClick={onClose}
+              className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
 
         <nav className="space-y-1">
@@ -39,6 +57,7 @@ export default function Sidebar() {
               <Link
                 key={link.label}
                 href={link.href}
+                onClick={onClose}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
                   active
                     ? "bg-indigo-500/10 text-indigo-400 font-medium shadow-[0_0_20px_rgba(99,102,241,0.15)] border border-indigo-500/20"
