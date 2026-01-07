@@ -1,37 +1,28 @@
-# Phase 3: Frontend Development & Integration - Constitution
+# Phase 3: Todo AI Chatbot - Constitution
 
 ## Vision Statement
-Build a responsive, user-friendly frontend application that seamlessly integrates with the backend API, providing an intuitive interface for managing todos and user accounts.
+To create an intelligent, stateless AI chatbot that empowers users to manage their tasks through natural language, leveraging the OpenAI Agents SDK and the Model Context Protocol (MCP) for robust, tool-driven interactions.
 
 ## Goals
-1. Create responsive UI components for all features
-2. Integrate with backend API
-3. Implement state management
-4. Create user authentication flows (register, login, logout)
-5. Implement todo management interface
-6. Add user profile management
-7. Ensure accessibility and SEO standards
+1.  **AI Integration**: Implement a sophisticated agent using OpenAI Agents SDK that understands user intent regarding task management.
+2.  **Tool-Use Architecture**: Expose core application logic (Todo CRUD) strictly via the Model Context Protocol (MCP).
+3.  **Stateless Design**: Ensure the backend remains purely stateless, persisting all conversation and task data in a Neon PostgreSQL database.
+4.  **Robust Persistence**: Guarantee that tasks, conversations, and individual messages are reliably stored and retrievable, allowing sessions to survive server restarts.
+5.  **Seamless Frontend**: Integrate the chat experience into the existing application using a ChatKit-compatible UI.
 
-## Non-Goals (Out of Scope)
-- Advanced animations (beyond basic transitions)
-- Real-time collaboration features
-- Offline mode (initially)
-- Mobile app development
-- Advanced data visualization
+## Non-Goals
+-   **Voice Interface**: The initial phase focuses solely on text-based interaction.
+-   **Multi-Modal Inputs**: Image or file analysis is out of scope for this phase.
+-   **Complex Reasoning**: The agent is scoped to task management, not general-purpose assistance beyond this domain.
 
 ## Success Criteria
-- All pages functional and responsive
-- Full integration with backend API
-- Authentication flows working correctly
-- Todo CRUD operations functional
-- Mobile responsive design (320px+)
-- Accessibility compliance (WCAG 2.1 Level AA)
-- Lighthouse score >80
-- User can complete all main workflows
+-   Users can add, list, complete, update, and delete tasks using natural language.
+-   The system persists context across server restarts (conversations are saved).
+-   The API adheres strictly to the `POST /api/{user_id}/chat` signature.
+-   MCP tools are correctly invoked by the agent to perform actions.
+-   The solution is deployed and functional on Vercel (or equivalent) with a live database.
 
 ## Constraints
-- Must be responsive (mobile first approach)
-- Must follow accessibility guidelines
-- Must provide good UX across browsers
-- Must handle API errors gracefully
-- Must provide feedback for user actions
+-   **Strict Stack**: Must use OpenAI Agents SDK, Official MCP SDK, FastAPI, SQLModel, and Neon Postgres.
+-   **No Local State**: No in-memory storage of conversation history between requests.
+-   **Security**: All tool executions must be authorized for the specific user.

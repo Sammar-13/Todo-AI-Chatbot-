@@ -1,9 +1,10 @@
 """Database models package."""
 
 from .base import BaseModel
-from .refresh_token import RefreshToken
-from .task import Task, TaskPriority, TaskStatus
 from .user import User
+from .task import Task, TaskStatus, TaskPriority
+from .refresh_token import RefreshToken
+from .conversation import Conversation, Message
 
 __all__ = [
     "BaseModel",
@@ -12,4 +13,6 @@ __all__ = [
     "TaskStatus",
     "TaskPriority",
     "RefreshToken",
+    "Conversation",
+    "Message",
 ]

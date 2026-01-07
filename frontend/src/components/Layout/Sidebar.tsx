@@ -16,6 +16,7 @@ export default function Sidebar({ className = "", onClose }: SidebarProps) {
 
   const links = [
     { href: "/tasks", label: "Tasks", icon: "✅" },
+    { href: "/chat", label: "AI Chat", icon: "🤖" },
     { href: "/settings", label: "Settings", icon: "⚙️" },
   ];
 

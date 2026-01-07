@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # Use os.getenv to avoid hardcoded defaults in production
     # Fallback to sqlite memory for testing/builds if not set
     DATABASE_URL: str = "" 
+    
+    # OpenAI
+    OPENAI_API_KEY: str = "" 
 
 
     # JWT Configuration

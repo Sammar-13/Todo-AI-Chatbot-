@@ -1,316 +1,103 @@
-# Phase 3: Frontend Development & Integration - Specification
+# Phase 3: Todo AI Chatbot - Specification
 
-## Page/Route Structure
+## Architecture Overview
+The system follows a stateless, agentic architecture where a FastAPI backend orchestrates interactions between the OpenAI Agent, an MCP Server exposing tools, and a Neon PostgreSQL database.
 
-### Public Routes
-- `/` - Landing/Home page
-- `/login` - User login page
-- `/register` - User registration page
-- `/forgot-password` - Password reset request
+### High-Level Flow
+1.  **Request**: Client sends `POST /api/{user_id}/chat` with a message.
+2.  **Context Loading**: Backend fetches existing conversation history from DB.
+3.  **Agent Execution**:
+    -   Agent is initialized with the fetched history.
+    -   Agent processes the user message.
+    -   Agent decides to call tools (MCP) if necessary.
+4.  **Tool Execution**:
+    -   MCP Server executes the requested tool (`add_task`, etc.).
+    -   Tool interacts with the Database (CRUD operations).
+    -   Tool returns result to the Agent.
+5.  **Response**:
+    -   Agent generates a natural language response.
+    -   New message and tool calls are saved to DB.
+    -   Response is sent back to the client.
 
-### Protected Routes
-- `/dashboard` - Main dashboard (redirects to todos)
-- `/todos` - Todo list page
-- `/todos/:id` - Todo detail page
-- `/profile` - User profile page
-- `/settings` - User settings page
+## Database Models (SQLModel)
 
-## Component Architecture
+### Task (Existing/Refined)
+-   `id`: Integer, Primary Key
+-   `user_id`: String, Index
+-   `title`: String
+-   `description`: String (Optional)
+-   `completed`: Boolean
+-   `created_at`: DateTime
+-   `updated_at`: DateTime
 
-### Layout Components
-```
-App
-├── Header
-│   ├── Logo
-│   ├── Navigation
-│   └── UserMenu
-├── Sidebar (protected routes only)
-│   ├── Navigation Links
-│   └── LogoutButton
-└── Footer
-```
+### Conversation
+-   `id`: Integer, Primary Key
+-   `user_id`: String, Index
+-   `title`: String (Optional, auto-generated summary)
+-   `created_at`: DateTime
+-   `updated_at`: DateTime
 
-### Page Components
+### Message
+-   `id`: Integer, Primary Key
+-   `conversation_id`: Integer, Foreign Key -> Conversation
+-   `user_id`: String
+-   `role`: String (`user`, `assistant`, `system`)
+-   `content`: Text
+-   `tool_calls`: JSON (Optional, stores MCP tool invocations)
+-   `created_at`: DateTime
 
-#### HomePage
-- Hero section with project description
-- Call-to-action buttons (Login/Register)
-- Feature highlights
-- Footer
+## API Endpoints
 
-#### LoginPage
-- Email input field
-- Password input field
-- Remember me checkbox
-- Login button
-- Forgot password link
-- Register link
-- Loading state
-- Error messages
+### Chat Endpoint
+-   **Method**: `POST`
+-   **Path**: `/api/{user_id}/chat`
+-   **Request Body**:
+    ```json
+    {
+      "conversation_id": "optional_int",
+      "message": "string"
+    }
+    ```
+-   **Response**:
+    ```json
+    {
+      "conversation_id": "int",
+      "response": "string",
+      "tool_calls": [ ... ]
+    }
+    ```
 
-#### RegisterPage
-- Name input field
-- Email input field
-- Password input field
-- Confirm password field
-- Terms acceptance checkbox
-- Register button
-- Error messages
-- Link to login
+## MCP Tools (Model Context Protocol)
 
-#### TodoListPage
-- Todo list view (table/card)
-- Add todo button
-- Filter controls (status, priority)
-- Sort controls
-- Search functionality
-- Pagination
-- Empty state
-- Loading state
+The following tools will be exposed via the MCP SDK:
 
-#### TodoDetailPage
-- Todo information
-- Edit form
-- Delete button
-- Mark as complete button
-- Priority/status display
-- Due date display
-- Back button
+1.  **`add_task`**
+    -   **Description**: Create a new task.
+    -   **Params**: `user_id` (str), `title` (str), `description` (str, optional)
+    -   **Returns**: Task details (id, status, title).
 
-#### ProfilePage
-- User information display
-- Edit form for name/avatar
-- Password change form
-- Account statistics
-- Delete account option (if applicable)
+2.  **`list_tasks`**
+    -   **Description**: List tasks for a user, optionally filtered by status.
+    -   **Params**: `user_id` (str), `status` (str: 'all' | 'pending' | 'completed')
+    -   **Returns**: List of tasks.
 
-#### SettingsPage
-- User preferences
-- Notification settings
-- Display preferences
-- Accessibility options
-- API token management
+3.  **`complete_task`**
+    -   **Description**: Mark a task as completed.
+    -   **Params**: `user_id` (str), `task_id` (int)
+    -   **Returns**: Updated task details.
 
-## State Management Structure
+4.  **`delete_task`**
+    -   **Description**: Permanently remove a task.
+    -   **Params**: `user_id` (str), `task_id` (int)
+    -   **Returns**: Confirmation of deletion.
 
-### Global State (Redux/Context)
-```
-auth/
-  ├── isAuthenticated: boolean
-  ├── user: { id, email, name, avatar }
-  ├── token: string
-  └── refreshToken: string
+5.  **`update_task`**
+    -   **Description**: Update task details.
+    -   **Params**: `user_id` (str), `task_id` (int), `title` (str, optional), `description` (str, optional)
+    -   **Returns**: Updated task details.
 
-todos/
-  ├── items: Todo[]
-  ├── selectedTodo: Todo | null
-  ├── filters: { status, priority }
-  ├── sortBy: string
-  ├── pagination: { page, limit, total }
-  └── loading: boolean
-
-ui/
-  ├── sidebarOpen: boolean
-  ├── darkMode: boolean
-  ├── notifications: Notification[]
-  └── modals: { [key]: boolean }
-```
-
-## API Integration Specifications
-
-### Request/Response Handling
-- All API calls wrapped in try-catch
-- Loading states managed during requests
-- Error states with user-friendly messages
-- Token refresh handled automatically
-- Redirect to login on 401
-
-### Error Handling
-- Network errors handled gracefully
-- API errors displayed to user
-- Validation errors shown on forms
-- Retry mechanism for failed requests
-- Toast notifications for feedback
-
-### Authentication Flow
-1. User submits login credentials
-2. API returns token and refresh token
-3. Tokens stored in localStorage/sessionStorage
-4. Token added to Authorization header for requests
-5. Token refresh on expiry
-6. Logout clears tokens and redirects
-
-## UI Component Specifications
-
-### Input Components
-- Text Input
-  - Label
-  - Placeholder
-  - Error message
-  - Validation feedback
-  - Required indicator
-
-- Text Area
-  - Label
-  - Placeholder
-  - Character count
-  - Validation feedback
-  - Resizable
-
-- Select Dropdown
-  - Label
-  - Options
-  - Placeholder
-  - Error message
-  - Multi-select variant
-
-- Date/Time Input
-  - Label
-  - Calendar picker
-  - Time picker
-  - Validation feedback
-
-### Display Components
-- Card
-  - Header
-  - Content
-  - Footer
-  - Hover effects
-
-- Table
-  - Sortable columns
-  - Selectable rows
-  - Pagination
-  - Empty state
-  - Loading state
-
-- Badge
-  - Color variants (status, priority)
-  - Dismissible variant
-  - Icon support
-
-- Modal/Dialog
-  - Header
-  - Content
-  - Footer with actions
-  - Close button
-  - Backdrop
-
-### Feedback Components
-- Toast Notification
-  - Success/Error/Warning/Info variants
-  - Auto-dismiss
-  - Action button
-
-- Loading Spinner
-  - Multiple sizes
-  - Overlay variant
-
-- Alert
-  - Success/Error/Warning/Info variants
-  - Dismissible
-  - Icon support
-
-- Empty State
-  - Icon
-  - Title
-  - Description
-  - Call-to-action button
-
-## Responsive Design Specifications
-
-### Breakpoints
-- Mobile: 320px - 767px
-- Tablet: 768px - 1023px
-- Desktop: 1024px+
-
-### Mobile Layout
-- Single column layout
-- Hamburger menu navigation
-- Larger touch targets (min 44x44px)
-- Optimized form inputs
-- Bottom sheet modals
-
-### Tablet Layout
-- Two column layout where appropriate
-- Adaptive components
-- Optimized spacing
-
-### Desktop Layout
-- Full multi-column layout
-- Sidebar navigation
-- Wider content areas
-- Modal dialogs
-
-## Accessibility Specifications
-
-### WCAG 2.1 Level AA Compliance
-- Semantic HTML structure
-- ARIA labels for interactive elements
-- Color contrast ratio ≥4.5:1
-- Keyboard navigation support
-- Focus indicators visible
-- Tab order logical
-- Screen reader tested
-- Heading hierarchy maintained
-
-### Form Accessibility
-- Labels associated with inputs
-- Error messages linked to inputs
-- Required indicators
-- Validation feedback
-- Clear focus states
-
-### Navigation Accessibility
-- Skip to content link
-- Landmark regions
-- Breadcrumbs for navigation
-- Clear link text
-
-## Performance Specifications
-
-### Core Web Vitals
-- Largest Contentful Paint (LCP): <2.5s
-- First Input Delay (FID): <100ms
-- Cumulative Layout Shift (CLS): <0.1
-
-### Optimization Goals
-- Code splitting by route
-- Image optimization
-- Lazy loading for images
-- Minified CSS/JS
-- Gzip compression
-- Caching strategy
-
-## Testing Specifications
-
-### Unit Tests
-- Component rendering
-- User interactions
-- State changes
-- Props validation
-
-### Integration Tests
-- Form submission flows
-- Authentication flows
-- API integration
-- Error handling
-
-### E2E Tests
-- Complete user journeys
-- Cross-browser testing
-- Mobile responsiveness
-- Accessibility
-
-## Browser Support
-- Chrome/Edge: Latest 2 versions
-- Firefox: Latest 2 versions
-- Safari: Latest 2 versions
-- Mobile browsers: Latest 2 versions
-
-## Build and Deployment
-- Development build with source maps
-- Production build with minification
-- Environment-specific configuration
-- Asset optimization
-- Build time <5 minutes
+## Agent Behavior
+-   **Persona**: Helpful, efficient assistant focused on task management.
+-   **Confirmation**: Explicitly confirm actions like deletion or significant updates.
+-   **Error Handling**: If a tool fails (e.g., task not found), explain the error clearly to the user.
+-   **Chaining**: Capable of adding multiple tasks or performing multi-step actions (e.g., "Add a task and then list all tasks") in a single turn if supported by the SDK/Model.

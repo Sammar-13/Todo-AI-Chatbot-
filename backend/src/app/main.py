@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
 
 from .api.v1.auth import router as auth_router
+from .api.v1.chat import router as chat_router
 from .api.v1.health import router as health_router
 from .api.v1.tasks import router as tasks_router
 from .api.v1.users import router as users_router
@@ -133,6 +134,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/api")
     app.include_router(users_router, prefix="/api")
     app.include_router(tasks_router, prefix="/api")
+    app.include_router(chat_router, prefix="/api")
 
     @app.get("/api/diagnose")
     async def diagnose_system() -> dict:
