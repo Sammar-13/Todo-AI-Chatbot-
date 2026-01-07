@@ -265,9 +265,16 @@ async def chat_endpoint(
         else:
              # It is ChatCompletionMessage object
              content = msg_data.content or ""
-             if msg_data.tool_calls:
+             if hasattr(msg_data, "tool_calls") and msg_data.tool_calls:
                  tool_calls_json = [
-                     {"id": tc.id, "function": {"name": tc.function.name, "arguments": tc.function.arguments}, "type": tc.type}
+                     {
+                         "id": tc.id, 
+                         "function": {
+                             "name": tc.function.name, 
+                             "arguments": tc.function.arguments
+                         }, 
+                         "type": tc.type
+                     }
                      for tc in msg_data.tool_calls
                  ]
         

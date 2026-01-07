@@ -40,7 +40,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'https://sammar20-todo-backend.hf.space/api/:path*',
+        destination: 'https://todo-ai-chatbot-backend-7kibd2noj.vercel.app/api/:path*',
       },
     ]
   },

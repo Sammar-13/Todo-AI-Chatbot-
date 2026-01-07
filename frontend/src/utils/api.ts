@@ -164,6 +164,43 @@ class APIClient {
     return response.text() as unknown as T
   }
 
+  async get<T = unknown>(endpoint: string, options: FetchOptions = {}): Promise<{ data: T }> {
+    const data = await this.fetchAPI<T>(endpoint, { ...options, method: 'GET' })
+    return { data }
+  }
+
+  async post<T = unknown>(endpoint: string, body: any, options: FetchOptions = {}): Promise<{ data: T }> {
+    const data = await this.fetchAPI<T>(endpoint, {
+      ...options,
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+    return { data }
+  }
+
+  async put<T = unknown>(endpoint: string, body: any, options: FetchOptions = {}): Promise<{ data: T }> {
+    const data = await this.fetchAPI<T>(endpoint, {
+      ...options,
+      method: 'PUT',
+      body: JSON.stringify(body),
+    })
+    return { data }
+  }
+
+  async patch<T = unknown>(endpoint: string, body: any, options: FetchOptions = {}): Promise<{ data: T }> {
+    const data = await this.fetchAPI<T>(endpoint, {
+      ...options,
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    })
+    return { data }
+  }
+
+  async delete<T = unknown>(endpoint: string, options: FetchOptions = {}): Promise<{ data: T }> {
+    const data = await this.fetchAPI<T>(endpoint, { ...options, method: 'DELETE' })
+    return { data }
+  }
+
   // Tokens are now stored in HTTP-only cookies set by the backend
   // These methods are deprecated but kept for compatibility
   setToken(): void {
