@@ -1,46 +1,38 @@
-# Multi-stage build for optimized production image
-FROM python:3.11-slim as builder
+# Use Python 3.11 slim image for a smaller footprint
+FROM python:3.11-slim
 
+# Set working directory
 WORKDIR /app
 
-# Install build dependencies
+# Install system dependencies required for building Python packages and PostgreSQL adapter
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pyproject.toml and install dependencies
-COPY pyproject.toml .
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir --user .
+# Copy requirements file first to leverage Docker cache
+COPY requirements.txt .
 
-# Final production image
-FROM python:3.11-slim
-
-WORKDIR /app
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy Python dependencies from builder
-COPY --from=builder /root/.local /root/.local
-
-# Set environment variables
-ENV PATH=/root/.local/bin:$PATH \
-    PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
+# We copy src/app to /app/app so that the 'app' package is at the root of PYTHONPATH
 COPY src/app /app/app
 
-# Expose port
+# Set environment variables
+# PYTHONPATH=/app ensures that 'import app' works correctly
+ENV PYTHONPATH=/app
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Expose the port the app runs on
 EXPOSE 8000
 
-# Health check
+# Health check using Python's http.client to avoid installing curl
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import http.client; conn = http.client.HTTPConnection('localhost', 8000); conn.request('GET', '/health'); exit(0 if conn.getresponse().status == 200 else 1)" || exit 1
 
-# Run application
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Command to run the application
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
