@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import chatService, { ChatResponse, ToolCall } from '@/services/chatService'
+import chatService, { ToolCall } from '@/services/chatService'
 import { useAuth } from '@/hooks/useAuth'
 
 interface Message {
