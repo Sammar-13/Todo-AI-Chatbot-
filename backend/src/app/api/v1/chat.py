@@ -1,22 +1,21 @@
 import json
 import logging
+import traceback
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlmodel import select
-from sqlalchemy.orm import selectinload
 
 from app.database import get_session, AsyncSession
 from app.db.models import Conversation, Message, User
 from app.mcp.tools import mcp
 from app.config import settings
 
-import openai
-
-# Initialize OpenAI client
-client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+import google.generativeai as genai
+from google.generativeai.types import content_types
+from collections.abc import Iterable
 
 router = APIRouter()
 logger = logging.getLogger("app")
@@ -30,20 +29,39 @@ class ChatResponse(BaseModel):
     response: str
     tool_calls: List[Dict[str, Any]] = []
 
-async def get_openai_tools():
-    """Convert MCP tools to OpenAI tool format."""
-    mcp_tools = await mcp.list_tools()
-    openai_tools = []
-    for tool in mcp_tools:
-        openai_tools.append({
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": tool.inputSchema
-            }
-        })
-    return openai_tools
+def clean_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Clean JSON schema recursively for Gemini compatibility using an Allow-List.
+    Only keeps fields that are strictly supported by Gemini Function Declarations.
+    """
+    if not isinstance(schema, dict):
+        return schema
+        
+    cleaned = {}
+    
+    # Allowed fields for Gemini Schema
+    allowed_fields = {
+        'type', 'format', 'description', 'nullable', 
+        'enum', 'properties', 'required', 'items'
+    }
+    
+    for key, value in schema.items():
+        if key in allowed_fields:
+            # Special handling for 'type'
+            if key == 'type':
+                if isinstance(value, str):
+                    cleaned[key] = value.upper()
+                else:
+                    cleaned[key] = value
+            # Recursion for nested schemas
+            elif key == 'properties' and isinstance(value, dict):
+                cleaned[key] = {k: clean_schema(v) for k, v in value.items()}
+            elif key == 'items' and isinstance(value, dict):
+                cleaned[key] = clean_schema(value)
+            else:
+                cleaned[key] = value
+                
+    return cleaned
 
 @router.post("/{user_id}/chat", response_model=ChatResponse)
 async def chat_endpoint(
@@ -52,245 +70,194 @@ async def chat_endpoint(
     session: AsyncSession = Depends(get_session)
 ):
     try:
-        user_uuid = UUID(user_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid user_id format")
-
-    # verify user exists
-    user = await session.get(User, user_uuid)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Get or create conversation
-    conversation_uuid = None
-    conversation = None
-    
-    if request.conversation_id:
+        # 1. Validate User
         try:
-            conversation_uuid = UUID(request.conversation_id)
-            # Load conversation with messages
-            query = select(Conversation).where(
-                Conversation.id == conversation_uuid, 
-                Conversation.user_id == user_uuid
-            ).options(selectinload(Conversation.messages))
-            
-            result = await session.execute(query)
-            conversation = result.scalar_one_or_none()
-            
-            if not conversation:
-                raise HTTPException(status_code=404, detail="Conversation not found")
+            user_uuid = UUID(user_id)
         except ValueError:
-             raise HTTPException(status_code=400, detail="Invalid conversation_id format")
-    
-    if not conversation:
-        conversation = Conversation(user_id=user_uuid, title=request.message[:50])
-        session.add(conversation)
+            raise HTTPException(status_code=400, detail="Invalid user_id format")
+
+        user = await session.get(User, user_uuid)
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+
+        # 2. Get/Create Conversation
+        conversation = None
+        if request.conversation_id:
+            try:
+                conv_id = UUID(request.conversation_id)
+                conversation = await session.get(Conversation, conv_id)
+                if conversation and conversation.user_id != user_uuid:
+                    conversation = None
+            except ValueError: pass
+        
+        if not conversation:
+            conversation = Conversation(user_id=user_uuid, title=request.message[:50])
+            session.add(conversation)
+            await session.commit()
+            await session.refresh(conversation)
+
+        # 3. Fetch History explicitly
+        statement = select(Message).where(Message.conversation_id == conversation.id).order_by(Message.created_at)
+        result = await session.execute(statement)
+        db_messages = result.scalars().all()
+
+        # 4. Prepare History for Gemini
+        gemini_history = []
+        for msg in db_messages:
+            role = "user" if msg.role == "user" else "model"
+            if msg.content: 
+                gemini_history.append({"role": role, "parts": [msg.content]})
+
+        # Append current user message (will be added to history by chat session)
+        current_msg_content = request.message
+
+        # 5. Save User Message
+        session.add(Message(conversation_id=conversation.id, user_id=user_uuid, role="user", content=current_msg_content))
         await session.commit()
-        await session.refresh(conversation)
-        # Empty messages list for new conversation
-        conversation.messages = []
 
-    # Save user message
-    user_msg = Message(
-        conversation_id=conversation.id,
-        user_id=user_uuid,
-        role="user",
-        content=request.message
-    )
-    session.add(user_msg)
-    await session.commit()
-
-    # Build history for OpenAI
-    # Sort messages by created_at
-    sorted_messages = sorted(conversation.messages, key=lambda m: m.created_at)
-    
-    messages_payload = [
-        {"role": "system", "content": "You are a helpful task management assistant. You can manage tasks using the provided tools. Always confirm actions. Use UUIDs for IDs provided by tools."}
-    ]
-    
-    for msg in sorted_messages:
-        # Convert stored messages to OpenAI format
-        # Note: We might need to handle tool_calls from history if we want full context
-        # For simplicity in this phase, we treat past tool calls as assistant text or we recreate the structure
-        # But to keep it simple, we just pass text content for now unless it was a tool call
-        if msg.role == "user":
-            messages_payload.append({"role": "user", "content": msg.content})
-        elif msg.role == "assistant":
-            # If we had tool calls, we should reconstruct them, but we stored them as JSON
-            # For now, append content.
-            messages_payload.append({"role": "assistant", "content": msg.content})
-            
-    # Append current user message (it was added to DB but might not be in sorted_messages if loaded before)
-    # Actually we loaded conversation before adding new message, so we must append it manually
-    messages_payload.append({"role": "user", "content": request.message})
-
-    # Get tools
-    tools = await get_openai_tools()
-    
-    # Run Agent Loop
-    final_response_text = ""
-    executed_tool_calls = []
-    
-    # Limit iterations to avoid infinite loops
-    for _ in range(5):
+        # 6. Configure Gemini
+        if not settings.gemini_api_key:
+            raise ValueError("GEMINI_API_KEY is not set in environment variables.")
+        
+        genai.configure(api_key=settings.gemini_api_key)
+        
+        # --- AUTO DETECT MODEL ---
+        # List available models and pick the best one
+        available_models = []
         try:
-            response = await client.chat.completions.create(
-                model="gpt-4o", # Or gpt-3.5-turbo
-                messages=messages_payload,
-                tools=tools,
-                tool_choice="auto"
-            )
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    available_models.append(m.name)
         except Exception as e:
-            logger.error(f"OpenAI API Error: {e}")
-            raise HTTPException(status_code=500, detail=f"AI Service Error: {str(e)}")
-            
-        message = response.choices[0].message
+            logger.error(f"Failed to list models: {e}")
+            # Fallback list if listing fails
+            available_models = ['models/gemini-1.5-flash', 'models/gemini-pro']
+
+        # Priority order
+        priorities = [
+            'models/gemini-1.5-flash', 
+            'models/gemini-1.5-pro',
+            'models/gemini-1.5-flash-001',
+            'models/gemini-1.0-pro', 
+            'models/gemini-pro'
+        ]
         
-        # Add to payload
-        messages_payload.append(message)
+        selected_model_name = None
+        for p in priorities:
+            if p in available_models:
+                selected_model_name = p
+                break
         
-        if message.tool_calls:
-            # Save assistant message with tool calls
-            # We need to execute tools
-            tool_calls_data = []
+        if not selected_model_name and available_models:
+            selected_model_name = available_models[0]
             
-            for tool_call in message.tool_calls:
-                tool_name = tool_call.function.name
-                tool_args = json.loads(tool_call.function.arguments)
-                tool_call_id = tool_call.id
+        if not selected_model_name:
+            raise ValueError(f"No suitable Gemini models found. Available: {available_models}")
+
+        # Convert MCP tools to Gemini Tool Config
+        mcp_tools_list = await mcp.list_tools()
+        
+        model = genai.GenerativeModel(
+            model_name=selected_model_name,
+            tools=[
+                genai.protos.Tool(function_declarations=[
+                    genai.protos.FunctionDeclaration(
+                        name=t.name,
+                        description=t.description,
+                        parameters=clean_schema(t.inputSchema) 
+                    ) for t in mcp_tools_list
+                ])
+            ]
+        )
+
+        chat = model.start_chat(history=gemini_history)
+        
+        # Send message
+        response = await chat.send_message_async(current_msg_content)
+        
+        final_text = ""
+        executed_tool_calls = []
+
+        # Loop max 5 times for multi-turn tool use
+        for _ in range(5):
+            if not response.candidates or not response.candidates[0].content.parts:
+                 break
+                 
+            part = response.candidates[0].content.parts[0]
+            
+            if part.function_call:
+                # Tool Call detected
+                fc = part.function_call
+                tool_name = fc.name
+                tool_args = dict(fc.args)
                 
-                tool_calls_data.append({
-                    "id": tool_call_id,
-                    "name": tool_name,
-                    "args": tool_args
-                })
-                
-                # Execute tool via MCP
-                # mcp.call_tool expects name and arguments
+                # Execute Tool (MCP)
+                tool_result_str = ""
                 try:
                     result = await mcp.call_tool(tool_name, arguments=tool_args)
-                    # result is a CallToolResult
-                    # We extract content
-                    # FastMCP result might be just the return value of function if using high level?
-                    # Let's check `call_tool` implementation or behavior.
-                    # call_tool returns CallToolResult with content list (TextContent, ImageContent, etc)
                     
-                    # Wait, FastMCP call_tool might return the raw function result?
-                    # No, it returns CallToolResult usually to be standard.
-                    # But let's assume it returns standard MCP result.
-                    
-                    content_text = ""
-                    if hasattr(result, 'content'):
+                    if hasattr(result, 'content') and isinstance(result.content, list):
                         for c in result.content:
-                             if c.type == 'text':
-                                 content_text += c.text
+                             tool_result_str += getattr(c, 'text', str(c))
+                    elif isinstance(result, str):
+                        tool_result_str = result
                     else:
-                        # Maybe it returns whatever the function returns?
-                        # In FastMCP, if I defined it to return str, maybe call_tool returns str?
-                        # Documentation says call_tool returns CallToolResult.
-                        # I will assume standard structure.
-                        # If result is string (due to some wrapper), use it.
-                        if isinstance(result, str):
-                            content_text = result
-                        else:
-                             content_text = str(result)
-
+                        tool_result_str = str(result)
+                        
                 except Exception as e:
-                    content_text = f"Error executing tool {tool_name}: {str(e)}"
+                    tool_result_str = f"Error executing tool {tool_name}: {str(e)}"
                 
                 executed_tool_calls.append({
                     "tool": tool_name,
                     "args": tool_args,
-                    "result": content_text
+                    "result": tool_result_str
                 })
                 
-                # Append tool output to messages
-                messages_payload.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "content": content_text
-                })
-                
-            # Loop continues to send tool outputs back to OpenAI
-        else:
-            # Final response
-            final_response_text = message.content or ""
-            break
-            
-    # Save final assistant message to DB
-    # We aggregate tool calls into the message record if we want, or create separate records.
-    # The Message model has `tool_calls` JSON field.
-    # We can save the *last* message (response) and include the tool calls happened before it?
-    # Or save every step?
-    # For simplicity, we save the final response.
-    # If there were tool calls, we should ideally save the intermediate messages too to keep history consistent.
-    
-    # We will save the Assistant message corresponding to final response.
-    # What about tool calls messages?
-    # If we don't save them, next time we load history, OpenAI won't know tools were called.
-    # So we MUST save all messages generated in the loop.
-    
-    # Iterate over messages_payload starting from where we added user message
-    # Skip the user message we already saved
-    # The user message was at index `len(messages_payload) - 1 - (iterations...)`
-    # Let's just save whatever is new.
-    
-    # We saved `request.message` already.
-    # The `messages_payload` now contains: [System, Old History..., User(Current), Assistant(ToolCall?), Tool(Result?), ..., Assistant(Final)]
-    
-    start_index = len(sorted_messages) + 2 # +1 for system, +1 for current user message
-    # Wait, sorted_messages doesn't include system.
-    # messages_payload = [System, OldMsgs..., User(Current), NewMsgs...]
-    # len(messages_payload) at start was 1 + len(sorted_messages) + 1
-    new_messages_start_idx = 1 + len(sorted_messages) + 1
-    
-    for i in range(new_messages_start_idx, len(messages_payload)):
-        msg_data = messages_payload[i]
-        role = msg_data["role"]
-        content = msg_data.get("content") or ""
-        
-        tool_calls_json = None
-        if role == "assistant" and hasattr(msg_data, "tool_calls"):
-             # It's an object, not dict?
-             # If it came from OpenAI response object, it has attributes.
-             # If we appended it directly, it's an object.
-             # We need to extract data.
-             pass
-        
-        # Pydantic model Message expects string content.
-        # Check if msg_data is dict or object
-        if isinstance(msg_data, dict):
-             # It is a tool response we constructed manually
-             pass
-        else:
-             # It is ChatCompletionMessage object
-             content = msg_data.content or ""
-             if hasattr(msg_data, "tool_calls") and msg_data.tool_calls:
-                 tool_calls_json = [
-                     {
-                         "id": tc.id, 
-                         "function": {
-                             "name": tc.function.name, 
-                             "arguments": tc.function.arguments
-                         }, 
-                         "type": tc.type
-                     }
-                     for tc in msg_data.tool_calls
-                 ]
-        
-        new_db_msg = Message(
-            conversation_id=conversation.id,
-            user_id=user_uuid,
-            role=role,
-            content=content,
-            tool_calls=tool_calls_json
+                # Send result back to Gemini
+                response = await chat.send_message_async(
+                    genai.protos.Content(
+                        parts=[genai.protos.Part(
+                            function_response=genai.protos.FunctionResponse(
+                                name=tool_name,
+                                response={'result': tool_result_str}
+                            )
+                        )]
+                    )
+                )
+            else:
+                # Text response
+                final_text = response.text
+                break
+
+        # 7. Save Assistant Message
+        if final_text or executed_tool_calls:
+            session.add(Message(
+                conversation_id=conversation.id,
+                user_id=user_uuid,
+                role="assistant",
+                content=final_text or "Processed tool calls.",
+                tool_calls=[{"tool": t["tool"], "args": t["args"], "result": t["result"][:200] + "..."} for t in executed_tool_calls] if executed_tool_calls else None
+            ))
+            await session.commit()
+
+        return ChatResponse(
+            conversation_id=str(conversation.id),
+            response=final_text or "Completed actions.",
+            tool_calls=executed_tool_calls
         )
-        session.add(new_db_msg)
-    
-    await session.commit()
-    
-    return ChatResponse(
-        conversation_id=str(conversation.id),
-        response=final_response_text,
-        tool_calls=executed_tool_calls
-    )
+
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        logger.error(f"Chat Endpoint Failed: {e}\n{error_trace}")
+        
+        status_code = 500
+        if "GEMINI_API_KEY" in str(e) or "API_KEY" in str(e):
+            status_code = 503
+        
+        # Include Exception Type for easier debugging
+        error_type = type(e).__name__
+        
+        raise HTTPException(
+            status_code=status_code, 
+            detail=f"Backend Error [{error_type}]: {str(e)}"
+        )
